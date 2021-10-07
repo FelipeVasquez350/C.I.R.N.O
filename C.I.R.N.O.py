@@ -35,6 +35,38 @@ class SubNet:
 
     def toString(self):
         return f"\nSubnet n: {self.subnet_n}\n-Subnet Address: {self.getSubnetAddress()}\n-Subnet Mask: {self.getSubnetMask()}\n-Gateway: {self.getGateway()}\n-Broadcast: {self.getBroadcast()}\n-Subnet Range: {self.getRange()[0]} - {self.getRange()[-1]}\n"
+class Router:
+    
+    def __init__(self, hostname):
+        self.hostname = hostname
+        self.Interfaces = []
+    def addInterface(self, int_name, port, endpoint, source_ip, source_mask, end_ip, end_mask):
+        newInterface = {
+            "Interface Name": int_name,
+            "Port": port,
+            "EndPoint": endpoint,
+            "Source IP": source_ip,
+            "Source Mask": source_mask,
+            "Destination IP": end_ip,
+            "Destination Mask": end_mask
+        }    
+        self.Interfaces.append(newInterface)
+    
+    def showInterfaces(self):
+        Output = f"{self.hostname}:\n"
+        for interface in self.Interfaces:
+            Output+=f"\n{self.interfaceToString(interface)}\n"
+        return Output
+
+    def interfaceToString(self, interface):
+        return f"""-Interface Name: {interface["Interface Name"]}
+-Port: {interface["Port"]}
+-EndPoint: {interface["EndPoint"]}
+-Source IP: {interface["Source IP"]}
+-Source Mask: {interface["Source Mask"]}
+-Destination IP: {interface["Destination IP"]}
+-Destination Mask: {interface["Destination Mask"]}"""
+
 
 class Network_Address_Class(Enum):
     Invalid = 0
@@ -215,7 +247,9 @@ def belongsNetworkMasktoClass(NETWORK_ADDRESS, NETWORK_MASK):
     elif  NETWORK_CLASS == Network_Address_Class.C and MASK_VALUE<24:
         return False
     return True
-
+def getReverseNetworkMask(NETWORK_MASK):
+    S0, S1, S2, S3 = map(int, NETWORK_MASK.split("."))
+    return f"{255-S0}.{255-S1}.{255-S2}.{255-S3}"
 def getMaxSubnets(NETWORK_MASK):
     return pow(2, 30 - getShortNetworkMask(NETWORK_MASK))
 def getMaxHosts(NETWORK_MASK):
@@ -296,7 +330,71 @@ def VLSM():
         for Subnet in TOTAL_SUBNETS:
             TextFile.write(Subnet.toString())
     return
-def OSPF():
+def OSPFv2():
+    N_NETWORKS = int(input("Quante reti sono presenti [min 2]? "))
+    if N_NETWORKS < 2: 
+        N_NETWORKS = 2
+    # ROUTERS = [Router(f"R{i+1}") for i in range(N_NETWORKS)]
+    ROUTERS=[]
+    for i in range(N_NETWORKS):
+        router = Router(f"R{i+1}")
+        ROUTERS.append(router)
+    for i in range(N_NETWORKS):
+        CONNECTED_NETWORKS = int(input("\nQuanti collegamenti ci sono con la rete [min 2]? "))
+        if CONNECTED_NETWORKS < 2: 
+            CONNECTED_NETWORKS = 2
+        
+        for j in range(CONNECTED_NETWORKS):
+            int_name = input("\nInserisci il nome dell'interfaccia a cui il router è collegato: ")
+            port = input("Indica il tipo di porta: ")
+            endpoint = input("Indica il tipo di porta d6el destinatario: ")
+            source_ip, source_mask = input("Inserisci l'indirizzo della rete: ").split("/")
+            end_ip, end_mask = input("Inserisci l'indirizzo della rete del destinatario: ").split("/")
+            ROUTERS[i].addInterface(int_name, port, endpoint, source_ip, source_mask, end_ip, end_mask)
+            #ROUTERS[i].addInterface("a", "port", "endpoint", source_ip, source_mask, "end_ip", "end_mask")
+            print(ROUTERS[i])
+    for router in ROUTERS:
+        for interface in router.Interfaces:
+            print(f"\n{router.hostname}(config)#router ospf 1")
+            print(f"{router.hostname}(config-router)#network " + interface["Source IP"] + " " +getReverseNetworkMask(getFullNetworkMask(interface["Source Mask"])) + " area 0")
+    print("\n\n\n\n\n\n")
+    for router in ROUTERS:
+        for interface in router.Interfaces:
+            print(f"\n{router.hostname}(config)#interface loopback 0")
+            print(f"{router.hostname}(config-if)#ip address 1.1.1.1 255.255.255.255")
+            print(f"{router.hostname}(config-if)#end")
+    print("\n\n\n\n\n\n")
+
+    for router in ROUTERS:
+        for interface in router.Interfaces:      
+            print(f"\n{router.hostname}(config)#router ospf 1")  
+            print(f"\n{router.hostname}(config-router)#router-id 11.11.11.11")
+            print(f"{router.hostname}#clear ip ospf process")
+            print(f"{router.hostname}#show ip ospf neighbor")
+    print("\n\n\n\n\n\n")
+
+    for router in ROUTERS:
+        for interface in router.Interfaces:
+            print(f"\n{router.hostname}#show ip ospf interface "+ interface["Port"])
+            print(f"\n{router.hostname}(config)#router ospf 1")
+            print(f"{router.hostname}(config-router)#passive-interface "+ interface["Port"])
+            print(f"\n{router.hostname}#show ip ospf interface "+ interface["Port"])
+            print(f"\n{router.hostname}#show ip route")
+    print("\n\n\n\n\n\n")
+
+    for router in ROUTERS:
+        for interface in router.Interfaces:
+            print(f"\n{router.hostname}(config)#router ospf 1")
+            print(f"{router.hostname}(config-router)#auto-cost reference-bandwidth 10000")
+    print("\n\n\n\n\n\n")
+
+    for router in ROUTERS:
+        for interface in router.Interfaces:
+            print(f"\n{router.hostname}(config)#interface" + interface["Port"])
+            print(f"{router.hostname}(config-if)#bandwidth?")
+            print(f"{router.hostname}(config-if)#bandwidth 64")
+            print(f"\n{router.hostname}#show ip route")
+
     return
 def Load_Config():
     return
@@ -324,7 +422,7 @@ options = {0 : Exit,
            3 : Subnetting_Statico_Dinamico,
            4 : RIP_RIPv2,
            5 : VLSM,
-           6 : OSPF,
+           6 : OSPFv2,
            7 : Load_Config,
            8 : Edit_Config,
            9 : About_Me
@@ -352,7 +450,7 @@ Selezionare una delle seguenti operazioni:
 -3)Creare Rete con Subnetting Statico/Dinamico. [WIP]
 -4)Creare Rete con RIP/RIPv2. [WIP]
 -5)Creare Rete con VLSM.
--6)Creare Rete con OSPF. [WIP]
+-6)Creare Rete con OSPFv2. [WIP]
 -7)Caricare configurazione. [WIP]
 -8)Modificare configurazione. [WIP]
 -9)About Me.
